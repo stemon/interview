@@ -53,19 +53,30 @@
 
 106. select、poll、epoll
 
+107. p2p协议
+
+108. ARP
+
+109. L2转发过程
+
+    假设PC向设备R发送数据，中间经过SW1和SW2路由器
+
+    1. PC
+
 ### 1.1 值得一看
 
 * [TCP 的那些事儿（上）](https://coolshell.cn/articles/11564.html)
 * [TCP 的那些事儿（下）](https://coolshell.cn/articles/11609.html)
 * [websocket 数据帧](https://coolshell.cn/articles/11564.html)
 * [大话 Select、Poll、Epoll](https://cloud.tencent.com/developer/article/1005481)
+* [Linux TCP/IP调优](https://tonydeng.github.io/2015/05/25/linux-tcpip-tuning/)
 
 ## 2. redis相关问题
 
 201. redis的集群是怎么搭建的？redis cluster是怎么分布key的？如果集群的新增或者减少一个节点的时候会发生什么？
 
     redis中有个slot东西，在建集群的时候就先把slot数量设定好，然后key是和slot绑定的，slot在哪个节点上key就哪个节点上。
-    当redis有挂掉的时候，集群是无法自动恢复，在挂的这段时间，访问的key在该节点上，那么请求会失败。必须通过人工干预重启该节点。
+    当redis有挂掉的时候，从节点会自动变成主节点，如果没有从节点那么在挂的这段时间，访问的key在该节点上，那么请求会失败，必须通过人工干预重启该节点。
     如果新增一个节点，也必须人工去重建slot分布。
 
 202. redis的sorted set是怎么实现
@@ -78,10 +89,20 @@
 
 204. memcache和redis区别
 
+    https://mp.weixin.qq.com/s/vJ5KKhns3eBTsrXCttvZow
+
+205. redis的两种持久化方式
+
+    RDB和AOF
+    RDB定时全量备份，如果服务挂掉，会丢失一段时间的数据，对redis影响不大
+    AOF增量备份，可以通过配置来指定有多少个key变化备份还是实时备份，会消耗一定的性能
+
 ### 2.1 值得一看
 
 * [redis sorted set内部实现](https://zsr.github.io/2017/07/03/redis-zset%E5%86%85%E9%83%A8%E5%AE%9E%E7%8E%B0/)
 * [Redis内部数据结构详解](http://zhangtielei.com/posts/server.html)
+* [Redis Cluster 实现](http://catkang.github.io/2016/05/08/redis-cluster-source.html)
+* [Redis迁移工具](https://github.com/vipshop/redis-migrate-tool)
 
 ## 3. mysql相关问题
 
@@ -93,6 +114,10 @@
 
 304. MySQL超时配置多久合适、链接数配置多少合适？
 
+305. mysql binlog作用
+
+    查看数据库的变更历史(具体时间点所有的mysql操作)、数据库增量备份和恢复(增量备份和基于时间点的恢复)、mysql复制(主主数据库的复制、主从数据库的复制)
+
 ### 3.1 值得一看
 
 * [MySQL索引背后的数据结构及算法原理](http://blog.codinglabs.org/articles/theory-of-mysql-index.html)
@@ -103,18 +128,31 @@
 
     int、bool、string等值类型是副本，slice、map等是引用
 
+    [Go Channel 源码剖析](http://legendtkl.com/2017/08/06/golang-channel-implement/)
+    [深入理解 Go Channel](http://legendtkl.com/2017/07/30/understanding-golang-channel/)
+
 401. Goroutine是怎么实现的(也就是PMG)
 
-402. go nil的实现
+402. go nil
+
+    [Go语言中的nil](http://nanxiao.me/golang-nil/)
 
 403. go interface的使用？interface的数据结构
+
+    [Go Data Structures: Interfaces](https://research.swtch.com/interfaces)
+
+    [InterfaceSlice](https://github.com/golang/go/wiki/InterfaceSlice)
+
+    [理解 go interface 的 5 个关键点](http://sanyuesha.com/2017/07/22/how-to-understand-go-interface/)
+
+    [Go Interface 源码剖析](http://legendtkl.com/2017/07/01/golang-interface-implement/)
 
 404. 数组和切片的区别，数组底层的数据结构，slice底层的数据结构,append slice会有哪些情况发生？
 
 405. make和new的区别
 
     new是创建一个类型指针,并将其初始化为零值，如果是一个结构体，将结构体的field都初始化为零值
-    make主要是用来创建channel、slice、map，仅仅返回一个类型指针，不会做初始化。针对channel可以指定channel长度，针对slice可以指定长度(len)和容量(cap)。
+    make主要是用来创建channel、slice、map，仅仅返回一个类型指针，不会做初始化。针对channel可以指定channel长度；针对slice可以指定长度(len)和容量(cap)；针对map可以指定初始的大小。
 
 406. sync.WaitGroup的实现原理
 
@@ -176,6 +214,57 @@
 
 421. string底层实现？为什么是固定长度？
 
+422. 协程和线程的区别
+
+    协程是应用调度
+	线程是系统调度
+
+423. go 1.8 gc
+
+    使用三色标记法+写屏障(write barrier)+STW
+    辅助回收功能
+
+    三色标记法
+
+    0. 创建三个集合：黑、灰、白
+    1. 将所有对象放入白色集合中
+    2. 从根对象开始遍历(不是递归遍历)，把遍历到的对象从白色集合放入灰色集合
+    3. 第一次标记，开启写屏障，遍历灰色集合，将灰色对象引用的对象从白色集合放入灰色集合，将灰色对象从灰色集合放入黑色集合.
+    4. 重复上一步，直至灰色集合中无任何对象（写屏障的作用：如果这个过程中有黑色对象引用了白色对象，那么就把白色对象置为灰色）
+    5. 第二次标记，开启STW，重复2-4
+    6. 结束STW，回收所有白色对象
+
+    第二次标记之前是gc和用户代码并发运行，第二次标记是只运行gc、暂停用户代码
+
+    问题
+
+    1. 如果白色对象产生的速度大于垃圾回收的速度，就会导致内存泄漏。
+
+        主要发生在第一次标记，可以使用对象池来优化或者强制执行gc
+
+    [Go语言的实时GC——理论与实践](https://segmentfault.com/a/1190000010753702)
+    [Golang 垃圾回收剖析](http://legendtkl.com/2017/04/28/golang-gc/)
+    [Go的三色标记GC](https://segmentfault.com/a/1190000012597428)
+
+424. map的实现？自动扩容是怎么实现的？
+
+    m:=make(map[int]struct{},100)//预先分配map的内存
+
+425. [copy内置函数的使用](https://studygolang.com/articles/6160)
+
+    签名类似: copy([]interface{},[]interface{})
+    只能用于切片，将第二个slice的元素拷贝到第一个slicel里，拷贝的长度为两个slice里面长度较小的长度值。
+    还有一种用法是将字符串当成[]byte类型的slice
+
+426. 多大对象可以定义为大对象
+
+427. go 版本更新历史
+
+[Go 1.10中值得关注的几个变化](https://tonybai.com/2018/02/17/some-changes-in-go-1-10/)
+
+428. csp(communication sequential process)原理
+
+429. 进程、线程、协程和goroutine的关系和区别
 
 ### 4.1 值得一看
 
@@ -191,9 +280,39 @@
 
 503. 合并两个数组，去重并排序
 
+504. 优先级队列
+
+505. 从n个数据中取出x个，列出所有可能的组合
+
+```go
+func getN(n int, prefix string, players []string) []string {
+    count := len(players)
+    //TODO 如何计算出所以可能的数量？
+	result := make([]string, 0)
+	for i := 0; i < count; i++ {
+		if n > 1 {
+			array := getN(n-1, prefix+players[i], players[i+1:])
+			result = append(result, array...)
+		} else {
+			result = append(result, prefix+players[i])
+		}
+	}
+	return result
+}
+```
+
 ## 6. linux相关问题
 
 601.  Linux下如何查看进程有问题是因为什么导致的？
+
+602. shell脚本，单引号和双引号的区别
+
+    单引号用于保持引号内所有字符的字面意思
+	双引号除了$加变量可以取变量的值，反引号表示命令替换，加\可以对$、反引号、双引号、\表示字面意思外，和单引号一样
+
+603. Linux环境变量的作用
+
+604. Linux /proc
 
 ## 7. 其他问题
 
@@ -210,3 +329,58 @@
 706. 讲讲restfull
 
 707. 一致性hash实现
+
+708. 堆和栈的区别
+
+709. mongodb和redis的区别
+
+710. 客户端上报日志->http 接口->kafka，如何保证http接口高吞吐、低延迟，即使kafka节点挂掉也不丢数据
+
+711. git merge和rebase的区别
+712. CAP
+713. Quorum
+714. Consistent Hashing
+
+## 8. kafka相关问题
+
+801. Kafka数据是怎么分布
+
+## 9. 以太坊
+
+1. 一个交易过程
+
+2. 怎么说是去中心化的，因为还有账号啥的
+
+3. 怎么实现让用户选择密码学签名算法
+
+4. trie数据结构(patricia tree,merkle patricia tree)
+
+5. sha3和RLP
+
+6. 椭圆曲线数字签名
+
+7. [casper](https://ethfans.org/posts/understanding-serenity-part-ii-casper)
+
+    [干货 | 权益证明 FAQ（完整版）](https://ethfans.org/posts/Proof-of-Stake-FAQ-new-2018-3-15)
+    [Casper 概念原型 乙](https://ethfans.org/posts/casper-poc2)
+    [Proof of Stake - 股权证明 系列1](https://ethfans.org/posts/222)
+
+8. 谁没收了验证人的保证金，谁收取验证人的罚金
+
+9. 拜占庭容错研究
+
+10. [干货 | 以太坊Sharding FAQ](https://ethfans.org/posts/Sharding-FAQ)
+
+11. [干货 | STARKs, Part I: 多项式证明](https://ethfans.org/posts/starks_part_1)
+
+12. [白皮书 | zeppelin_os](https://ethfans.org/posts/zeppelin_os_whitepaper)
+
+13. Truebit
+
+14. [科普 | Raiden Network — Ethereum 区块链支付通道](https://ethfans.org/posts/raiden-network-ethereum-17-12-23)
+
+15. [干货 | zkSNARKs（零知识证明）简述](https://ethfans.org/posts/zksnarks-in-a-nutshell)
+
+16. 侧链
+
+17. [干货 | 什么是加密经济学？ 初学者终极指南](https://ethfans.org/posts/what-is-cryptoeconomics-beginners-guide)
